@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+use borsh::{BorshSerialize, BorshDeserialize};
 use clear_on_drop::clear::Clear;
 use curve25519_dalek::constants::{RISTRETTO_BASEPOINT_COMPRESSED, RISTRETTO_BASEPOINT_POINT};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
@@ -12,7 +13,7 @@ use zkp::{CompactProof, Transcript};
 use crate::ciphertext::*;
 
 /// The `PublicKey` struct represents an ElGamal public key.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct PublicKey(RistrettoPoint);
 
 define_proof! {dl_knowledge, "DLKnowledge Proof", (x), (A), (G) : A = (x * G)}
