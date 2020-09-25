@@ -216,23 +216,22 @@ impl PublicKey {
     /// ```
     pub fn verify_correct_decryption_no_Merlin(
         self,
-        proof: &((CompressedRistretto, CompressedRistretto), Scalar),
+        proof: &((RistrettoPoint, RistrettoPoint), Scalar),
         ciphertext: &Ciphertext,
         message: &RistrettoPoint,
     ) -> bool {
         let ((announcement_base_G, announcement_base_ctxtp0), response) = proof;
         let challenge = compute_challenge(
-            &message.compress(),
+            &message,
             ciphertext,
             announcement_base_G,
             announcement_base_ctxtp0,
             &self,
         );
         response * RISTRETTO_BASEPOINT_POINT
-            == announcement_base_G.decompress().unwrap() + challenge * self.get_point()
+            == announcement_base_G + challenge * self.get_point()
             && response * ciphertext.points.0
-                == announcement_base_ctxtp0.decompress().unwrap()
-                    + challenge * (ciphertext.points.1 - message)
+                == announcement_base_ctxtp0 + challenge * (ciphertext.points.1 - message)
     }
 
     /// Convert to bytes
@@ -249,21 +248,21 @@ impl PublicKey {
 /// Compute challenge for the proof of correct decryption. Used in the variation
 /// that does not use Merlin.
 pub(crate) fn compute_challenge(
-    message: &CompressedRistretto,
+    message: &RistrettoPoint,
     ciphertext: &Ciphertext,
-    announcement_base_G: &CompressedRistretto,
-    announcement_base_ctxtp0: &CompressedRistretto,
+    announcement_base_G: &RistrettoPoint,
+    announcement_base_ctxtp0: &RistrettoPoint,
     pk: &PublicKey,
 ) -> Scalar {
     Scalar::from_hash(
         Sha512::new()
-            .chain(message.to_bytes())
-            .chain(ciphertext.points.0.compress().to_bytes())
-            .chain(ciphertext.points.1.compress().to_bytes())
-            .chain(announcement_base_G.to_bytes())
-            .chain(announcement_base_ctxtp0.to_bytes())
-            .chain(RISTRETTO_BASEPOINT_COMPRESSED.to_bytes())
-            .chain(pk.get_point().compress().to_bytes()),
+            .chain(&message.try_to_vec().unwrap())
+            .chain(&ciphertext.points.0.try_to_vec().unwrap())
+            .chain(&ciphertext.points.1.try_to_vec().unwrap())
+            .chain(&announcement_base_G.try_to_vec().unwrap())
+            .chain(&announcement_base_ctxtp0.try_to_vec().unwrap())
+            .chain(&RISTRETTO_BASEPOINT_POINT.try_to_vec().unwrap())
+            .chain(&pk.get_point().try_to_vec().unwrap()),
     )
 }
 
