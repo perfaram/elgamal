@@ -11,6 +11,7 @@ use sha2::{Digest, Sha512};
 use zkp::{CompactProof, Transcript};
 
 use crate::ciphertext::*;
+use crate::multiply::ristretto_mul;
 
 /// The `PublicKey` struct represents an ElGamal public key.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, BorshSerialize, BorshDeserialize)]
@@ -228,10 +229,10 @@ impl PublicKey {
             announcement_base_ctxtp0,
             &self,
         );
-        response * RISTRETTO_BASEPOINT_POINT
-            == announcement_base_G + challenge * self.get_point()
-            && response * ciphertext.points.0
-                == announcement_base_ctxtp0 + challenge * (ciphertext.points.1 - message)
+        ristretto_mul(&RISTRETTO_BASEPOINT_POINT, &response).unwrap()
+            == announcement_base_G + ristretto_mul(&self.get_point(), &challenge).unwrap()
+            && ristretto_mul(&ciphertext.points.0, &response).unwrap()
+                == announcement_base_ctxtp0 + ristretto_mul(&(ciphertext.points.1 - message), &challenge).unwrap()
     }
 
     /// Convert to bytes
@@ -254,16 +255,19 @@ pub(crate) fn compute_challenge(
     announcement_base_ctxtp0: &RistrettoPoint,
     pk: &PublicKey,
 ) -> Scalar {
-    Scalar::from_hash(
-        Sha512::new()
-            .chain(&message.try_to_vec().unwrap())
-            .chain(&ciphertext.points.0.try_to_vec().unwrap())
-            .chain(&ciphertext.points.1.try_to_vec().unwrap())
-            .chain(&announcement_base_G.try_to_vec().unwrap())
-            .chain(&announcement_base_ctxtp0.try_to_vec().unwrap())
-            .chain(&RISTRETTO_BASEPOINT_POINT.try_to_vec().unwrap())
-            .chain(&pk.get_point().try_to_vec().unwrap()),
-    )
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(
+        solana_sdk::hash::hashv(&[
+            &message.try_to_vec().unwrap(),
+            &ciphertext.points.0.try_to_vec().unwrap(),
+            &ciphertext.points.1.try_to_vec().unwrap(),
+            &announcement_base_G.try_to_vec().unwrap(),
+            &announcement_base_ctxtp0.try_to_vec().unwrap(),
+            &RISTRETTO_BASEPOINT_POINT.try_to_vec().unwrap(),
+            &pk.get_point().try_to_vec().unwrap(),
+        ]).as_ref()
+    );
+    Scalar::from_bits(hash)
 }
 
 impl From<RistrettoPoint> for PublicKey {
