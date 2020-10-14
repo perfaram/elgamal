@@ -21,7 +21,7 @@ sha2 = "0.8.0"
 clear_on_drop = { version = "0.2" }
 serde = { version = "1.0", features = ["derive"] }
 bincode = "1"
-solana-sdk = { git = "https://github.com/solana-labs/solana", rev = "dd7fae4afb898dee5b5147c8ee8d6f6d712363d1", default-features = false }
+solana-sdk = { version = "1.4.0", default-features = false }
 
 [package.metadata.docs.rs]
 rustdoc-args = [
