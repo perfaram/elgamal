@@ -1,3 +1,4 @@
+use borsh::{BorshSerialize, BorshDeserialize};
 use core::ops::{Add, Div, Mul, Sub};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
@@ -10,7 +11,7 @@ use zkp::{CompactProof, Transcript};
 
 define_proof! {dleq, "DLEQ Proof", (x), (A, B, H), (G) : A = (x * B), H = (x * G)}
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct Ciphertext {
     pub pk: PublicKey,
     pub points: (RistrettoPoint, RistrettoPoint),
