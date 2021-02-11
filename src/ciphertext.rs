@@ -1,5 +1,5 @@
 use borsh::{BorshSerialize, BorshDeserialize};
-use core::ops::{Add, Div, Mul, Sub};
+use core::ops::{Add, AddAssign, Div, Mul, Sub, SubAssign};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use serde::{Deserialize, Serialize};
@@ -182,6 +182,18 @@ impl<'a, 'b> Div<&'b Scalar> for &'a Ciphertext {
 }
 
 define_div_variants!(LHS = Ciphertext, RHS = Scalar, Output = Ciphertext);
+
+impl AddAssign for Ciphertext {
+    fn add_assign(&mut self, rhs: Ciphertext) {
+        *self = *self + rhs;
+    }
+}
+
+impl SubAssign for Ciphertext {
+    fn sub_assign(&mut self, rhs: Ciphertext) {
+        *self = *self - rhs;
+    }
+}
 
 #[cfg(test)]
 mod tests {
