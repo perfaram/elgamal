@@ -13,11 +13,11 @@ license = "MIT"
 
 
 [dependencies]
-borsh = "0.7.1"
-curve25519-dalek = { version = "2", default-features = false, features = ["serde", "borsh"], git = "https://github.com/garious/curve25519-dalek", rev = "60efef3553d6bf3d7f3b09b5f97acd54d72529ff" }
-zkp = { version = "0.7.0", git = "https://github.com/garious/zkp", rev = "ed9eba6de4214fe67466b662b0d8017c3645c3f8"}
-rand_core = { version = "0.5.1", default-features = false }
-sha2 = "0.8.0"
+borsh = "0.8.1"
+curve25519-dalek = { package = "curve25519-dalek-ng", version = "4", default-features = false, features = ["serde", "borsh"], git = "https://github.com/garious/curve25519-dalek", rev = "fcef1fa11b3d3e89a1abf8986386ba9ae375392c" }
+zkp = { version = "0.8", git = "https://github.com/garious/zkp", rev = "e4b350e123476fcbd4b54d36a5d446d4aef5d842" }
+rand_core = { version = "0.6", default-features = false }
+sha2 = "0.9.0"
 clear_on_drop = { version = "0.2" }
 serde = { version = "1.0", features = ["derive"] }
 bincode = "1"
