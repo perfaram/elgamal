@@ -11,6 +11,7 @@ This library provides implementations of:
 * Zero Knowledge Proofs using the toolkit for proof generation [`zkp`][zkp] supporting proof generation and verification
  of correct encryption, correct decryption and knowledge of private key.
 * [EdDSA](https://en.wikipedia.org/wiki/EdDSA) generation and verification.
+* [ZK proof of plaintext equality](https://crypto.stackexchange.com/questions/30010/is-there-a-way-to-prove-equality-of-plaintext-that-was-encrypted-using-different/30305)
 
 **Important**: while we have followed recommendations regarding the scheme itself, this library should currently be seen
  as an experimental implementation. In particular, no particular efforts have so far been made to harden it against
