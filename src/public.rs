@@ -6,6 +6,7 @@ use curve25519_dalek::scalar::Scalar;
 use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
+use std::io::Write;
 
 use zkp::{CompactProof, Transcript};
 
@@ -63,6 +64,15 @@ impl PublicKey {
         let random_generator = RISTRETTO_BASEPOINT_POINT * random;
         let encrypted_plaintext = message + self.0 * random;
         random.clear();
+        Ciphertext {
+            pk: self,
+            points: (random_generator, encrypted_plaintext),
+        }
+    }
+
+    pub fn encrypt_random(self, message: &RistrettoPoint, random: &Scalar) -> Ciphertext {
+        let random_generator = RISTRETTO_BASEPOINT_POINT * random;
+        let encrypted_plaintext = message + self.0 * random;
         Ciphertext {
             pk: self,
             points: (random_generator, encrypted_plaintext),
@@ -266,6 +276,33 @@ pub(crate) fn compute_challenge(
     )
 }
 
+/// Compute challenge for the proof of plaintext equality. No Merlin version
+/// has been implemented so far.
+pub(crate) fn compute_challenge_ptxt_eq(
+    orig_pk: &PublicKey,
+    rnew_pk: &PublicKey,
+    orig_ciphertext: &Ciphertext,
+    rnew_ciphertext: &Ciphertext,
+    announcement_base_G_1: &CompressedRistretto,
+    announcement_base_G_2: &CompressedRistretto,
+    announcement_base_G_3: &CompressedRistretto,
+) -> Scalar {
+    Scalar::from_hash(
+        Sha512::new()
+            .chain(orig_ciphertext.points.1.compress().to_bytes())//c_1
+            .chain(orig_ciphertext.points.0.compress().to_bytes())//d_1
+            .chain(rnew_ciphertext.points.1.compress().to_bytes())//c_2
+            .chain(rnew_ciphertext.points.0.compress().to_bytes())//d_2
+            .chain(orig_pk.get_point().compress().to_bytes()) //g_1
+            .chain(RISTRETTO_BASEPOINT_COMPRESSED.to_bytes()) //h_1
+            .chain(rnew_pk.get_point().compress().to_bytes()) //g_2
+            .chain(RISTRETTO_BASEPOINT_COMPRESSED.to_bytes()) //h_2
+            .chain(announcement_base_G_1.to_bytes())
+            .chain(announcement_base_G_2.to_bytes())
+            .chain(announcement_base_G_3.to_bytes())
+    )
+}
+
 impl From<RistrettoPoint> for PublicKey {
     /// Given a secret key, compute its corresponding Public key
     fn from(point: RistrettoPoint) -> PublicKey {
@@ -330,5 +367,54 @@ mod tests {
         let decoded: PublicKey = bincode::deserialize(&encoded).unwrap();
 
         assert_eq!(pk, decoded);
+    }
+
+    fn fill_from_str(mut bytes: &mut [u8], s: &str) {
+        bytes.write(s.as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn test_stackexchange_sol() {
+        let mut csprng = OsRng;
+
+        let content_str = "Crypt0_h0eZZ";
+        let mut content_bytes = [0u8; 64];
+        fill_from_str(&mut content_bytes, content_str);
+        let ptxt = RistrettoPoint::from_uniform_bytes(&content_bytes);
+
+        let sk_bob = SecretKey::new(&mut csprng);
+        let pk_bob = PublicKey::from(&sk_bob);
+        let sk_carol = SecretKey::new(&mut csprng);
+        let pk_carol = PublicKey::from(&sk_carol);
+
+        // Alice encrypts for Bob
+        let ctxt_1 = pk_bob.encrypt(&ptxt);
+        let rtxt_1 = sk_bob.decrypt(&ctxt_1);
+        assert_eq!(ptxt, rtxt_1);
+
+        // Bob reencrypts for Carol
+        let mut r_2: Scalar = Scalar::random(&mut csprng);
+        let ctxt_2 = pk_carol.encrypt_random(&rtxt_1, &r_2);
+        let rtxt_2 = sk_carol.decrypt(&ctxt_2);
+        assert_eq!(ptxt, rtxt_2);
+
+        // ZKproof
+        /// Bob picks b_1, b_2 uniformly at random from Z_p
+        let b_1: Scalar = Scalar::random(&mut csprng);
+        let b_2: Scalar = Scalar::random(&mut csprng);
+
+        let G_1 = b_1 * RISTRETTO_BASEPOINT_POINT;
+        let G_2 = b_2 * RISTRETTO_BASEPOINT_POINT;
+        let G_3 = ctxt_1.points.0 * b_1 - pk_carol.get_point() * b_2;
+
+        let h = compute_challenge_ptxt_eq(&pk_bob, &pk_carol, &ctxt_1, &ctxt_2, &G_1.compress(), &G_2.compress(), &G_3.compress());
+        let sp_1 = b_1 + h * sk_bob.get_scalar();
+        let rp_2 = b_2 + h * r_2;
+        //published data for proof verification: G_1, G_2, G_3, sp_1, rp_1
+
+        //verification
+        assert_eq!(sp_1 * RISTRETTO_BASEPOINT_POINT, h * pk_bob.get_point() + G_1);
+        assert_eq!(rp_2 * RISTRETTO_BASEPOINT_POINT, h * ctxt_2.points.0 + G_2);
+        assert_eq!(G_3, h * ctxt_2.points.1 - h * ctxt_1.points.1 + sp_1 * ctxt_1.points.0 - rp_2 * pk_carol.get_point());
     }
 }
