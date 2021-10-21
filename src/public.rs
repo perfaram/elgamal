@@ -251,7 +251,7 @@ impl PublicKey {
     /// The variable names are chosen from the point of view of the final receiver,
     /// but the verification can be performed by anyone.
     ///
-    /// Source:
+    /// Source: https://crypto.stackexchange.com/questions/30010/is-there-a-way-to-prove-equality-of-plaintext-that-was-encrypted-using-different
     pub fn verify_correct_reencryption_no_Merlin(
         self,
         proof: &((CompressedRistretto, CompressedRistretto, CompressedRistretto), Scalar, Scalar),
