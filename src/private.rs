@@ -153,7 +153,7 @@ impl SecretKey {
         forwarded_ciphertext: &Ciphertext,
         forwarded_ciphertext_randomness: Scalar,
         next_recipient_pk: &PublicKey,
-    ) -> ((CompressedRistretto, CompressedRistretto, CompressedRistretto), Scalar, Scalar) {
+    ) -> ((RistrettoPoint, RistrettoPoint, RistrettoPoint), Scalar, Scalar) {
         let pk = PublicKey::from(self);
 
         let anncmnt_random_1: Scalar = Scalar::random(&mut OsRng);
@@ -169,18 +169,18 @@ impl SecretKey {
             next_recipient_pk,
             received_ciphertext,
             forwarded_ciphertext,
-            &anncmnt_base_G_1.compress(),
-            &anncmnt_base_G_2.compress(),
-            &anncmnt_base_G_3.compress()
+            &anncmnt_base_G_1,
+            &anncmnt_base_G_2,
+            &anncmnt_base_G_3
         );
 
         let response_correct_decryption = anncmnt_random_1 + challenge * self.get_scalar();
         let response_correct_encryption = anncmnt_random_2 + challenge * forwarded_ciphertext_randomness;
         (
             (
-                anncmnt_base_G_1.compress(),
-                anncmnt_base_G_2.compress(),
-                anncmnt_base_G_3.compress(),
+                anncmnt_base_G_1,
+                anncmnt_base_G_2,
+                anncmnt_base_G_3,
             ),
             response_correct_decryption,
             response_correct_encryption,

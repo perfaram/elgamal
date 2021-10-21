@@ -255,15 +255,11 @@ impl PublicKey {
     /// Source:
     pub fn verify_correct_reencryption_no_Merlin(
         self,
-        proof: &((CompressedRistretto, CompressedRistretto, CompressedRistretto), Scalar, Scalar),
+        proof: &((RistrettoPoint, RistrettoPoint, RistrettoPoint), Scalar, Scalar),
         original_ciphertext: &Ciphertext,
         forwarded_ciphertext: &Ciphertext,
         orig_recipient_pk: &PublicKey,
     ) -> bool {
-        fn pt_deser(point: &CompressedRistretto) -> RistrettoPoint {
-            return point.decompress().unwrap();
-        }
-
         let (
                 (anncmnt_base_G_1, anncmnt_base_G_2, anncmnt_base_G_3),
                 response_correct_decryption, response_correct_encryption
@@ -280,10 +276,10 @@ impl PublicKey {
         );
 
         let mut is_verified = ristretto_mul(&RISTRETTO_BASEPOINT_POINT, &response_correct_decryption).unwrap()
-                                == ristretto_mul(&orig_recipient_pk.get_point(), &challenge).unwrap() + pt_deser(anncmnt_base_G_1);
+                                == ristretto_mul(&orig_recipient_pk.get_point(), &challenge).unwrap() + anncmnt_base_G_1;
         is_verified &= ristretto_mul(&RISTRETTO_BASEPOINT_POINT, &response_correct_encryption).unwrap()
-                                == ristretto_mul(&forwarded_ciphertext.points.0, &challenge).unwrap() + pt_deser(anncmnt_base_G_2);
-        is_verified &= pt_deser(anncmnt_base_G_3)
+                                == ristretto_mul(&forwarded_ciphertext.points.0, &challenge).unwrap() + anncmnt_base_G_2;
+        is_verified &= *anncmnt_base_G_3
                                 ==
                                     ristretto_mul(&forwarded_ciphertext.points.1, &challenge).unwrap()
                                     - ristretto_mul(&original_ciphertext.points.1, &challenge).unwrap()
@@ -335,24 +331,27 @@ pub(crate) fn compute_challenge_ptxt_eq(
     rnew_pk: &PublicKey,
     orig_ciphertext: &Ciphertext,
     rnew_ciphertext: &Ciphertext,
-    announcement_base_G_1: &CompressedRistretto,
-    announcement_base_G_2: &CompressedRistretto,
-    announcement_base_G_3: &CompressedRistretto,
+    announcement_base_G_1: &RistrettoPoint,
+    announcement_base_G_2: &RistrettoPoint,
+    announcement_base_G_3: &RistrettoPoint,
 ) -> Scalar {
-    Scalar::from_hash(
-        Sha512::new()
-            .chain(orig_ciphertext.points.1.compress().to_bytes())//c_1
-            .chain(orig_ciphertext.points.0.compress().to_bytes())//d_1
-            .chain(rnew_ciphertext.points.1.compress().to_bytes())//c_2
-            .chain(rnew_ciphertext.points.0.compress().to_bytes())//d_2
-            .chain(orig_pk.get_point().compress().to_bytes()) //g_1
-            .chain(RISTRETTO_BASEPOINT_COMPRESSED.to_bytes()) //h_1
-            .chain(rnew_pk.get_point().compress().to_bytes()) //g_2
-            .chain(RISTRETTO_BASEPOINT_COMPRESSED.to_bytes()) //h_2
-            .chain(announcement_base_G_1.to_bytes())
-            .chain(announcement_base_G_2.to_bytes())
-            .chain(announcement_base_G_3.to_bytes())
-    )
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(
+        solana_sdk::hash::hashv(&[
+            &orig_ciphertext.points.1.try_to_vec().unwrap(), //c_1
+            &orig_ciphertext.points.0.try_to_vec().unwrap(), //d_1
+            &rnew_ciphertext.points.1.try_to_vec().unwrap(), //c_2
+            &rnew_ciphertext.points.0.try_to_vec().unwrap(), //d_2
+            &orig_pk.get_point().try_to_vec().unwrap(),      //g_1
+            &RISTRETTO_BASEPOINT_POINT.try_to_vec().unwrap(),//h_1
+            &rnew_pk.get_point().try_to_vec().unwrap(),      //g_2
+            &RISTRETTO_BASEPOINT_POINT.try_to_vec().unwrap(),//h_2
+            &announcement_base_G_1.try_to_vec().unwrap(),
+            &announcement_base_G_2.try_to_vec().unwrap(),
+            &announcement_base_G_3.try_to_vec().unwrap(),
+        ]).as_ref()
+    );
+    Scalar::from_bits(hash)
 }
 
 impl From<RistrettoPoint> for PublicKey {
