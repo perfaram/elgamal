@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 use clear_on_drop::clear::Clear;
 use core::ops::Mul;
-use curve25519_dalek::constants::{RISTRETTO_BASEPOINT_POINT};
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use rand_core::{CryptoRng, OsRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -122,26 +122,23 @@ impl SecretKey {
         &self,
         ciphertext: &Ciphertext,
         message: &RistrettoPoint,
-    ) -> ((CompressedRistretto, CompressedRistretto), Scalar) {
+    ) -> ((RistrettoPoint, RistrettoPoint), Scalar) {
         let pk = PublicKey::from(self);
         let announcement_random = Scalar::random(&mut OsRng);
         let announcement_base_G = announcement_random * RISTRETTO_BASEPOINT_POINT;
         let announcement_base_ctxtp0 = announcement_random * ciphertext.points.0;
 
         let challenge = compute_challenge(
-            &message.compress(),
+            &message,
             ciphertext,
-            &announcement_base_G.compress(),
-            &announcement_base_ctxtp0.compress(),
+            &announcement_base_G,
+            &announcement_base_ctxtp0,
             &pk,
         );
 
         let response = announcement_random + challenge * self.get_scalar();
         (
-            (
-                announcement_base_G.compress(),
-                announcement_base_ctxtp0.compress(),
-            ),
+            (announcement_base_G, announcement_base_ctxtp0),
             response,
         )
     }
@@ -156,7 +153,7 @@ impl SecretKey {
         forwarded_ciphertext: &Ciphertext,
         forwarded_ciphertext_randomness: Scalar,
         next_recipient_pk: &PublicKey,
-    ) -> ((CompressedRistretto, CompressedRistretto, CompressedRistretto), Scalar, Scalar) {
+    ) -> ((RistrettoPoint, RistrettoPoint, RistrettoPoint), Scalar, Scalar) {
         let pk = PublicKey::from(self);
 
         let anncmnt_random_1: Scalar = Scalar::random(&mut OsRng);
@@ -172,18 +169,18 @@ impl SecretKey {
             next_recipient_pk,
             received_ciphertext,
             forwarded_ciphertext,
-            &anncmnt_base_G_1.compress(),
-            &anncmnt_base_G_2.compress(),
-            &anncmnt_base_G_3.compress()
+            &anncmnt_base_G_1,
+            &anncmnt_base_G_2,
+            &anncmnt_base_G_3
         );
 
         let response_correct_decryption = anncmnt_random_1 + challenge * self.get_scalar();
         let response_correct_encryption = anncmnt_random_2 + challenge * forwarded_ciphertext_randomness;
         (
             (
-                anncmnt_base_G_1.compress(),
-                anncmnt_base_G_2.compress(),
-                anncmnt_base_G_3.compress(),
+                anncmnt_base_G_1,
+                anncmnt_base_G_2,
+                anncmnt_base_G_3,
             ),
             response_correct_decryption,
             response_correct_encryption,
