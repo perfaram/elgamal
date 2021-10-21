@@ -145,6 +145,50 @@ impl SecretKey {
             response,
         )
     }
+
+    /// Prove the correct decryption of a ciphertext and its subsequent reencryption
+    /// for another public key, i.e. the equality of the plaintext behind two different
+    /// ciphertexts.
+    /// So far, no Merlin version is available.
+    pub fn prove_correct_reencryption_no_Merlin(
+        &self,
+        received_ciphertext: &Ciphertext,
+        forwarded_ciphertext: &Ciphertext,
+        forwarded_ciphertext_randomness: Scalar,
+        next_recipient_pk: &PublicKey,
+    ) -> ((CompressedRistretto, CompressedRistretto, CompressedRistretto), Scalar, Scalar) {
+        let pk = PublicKey::from(self);
+
+        let anncmnt_random_1: Scalar = Scalar::random(&mut OsRng);
+        let anncmnt_random_2: Scalar = Scalar::random(&mut OsRng);
+
+        let anncmnt_base_G_1 = anncmnt_random_1 * RISTRETTO_BASEPOINT_POINT;
+        let anncmnt_base_G_2 = anncmnt_random_2 * RISTRETTO_BASEPOINT_POINT;
+        let anncmnt_base_G_3 = received_ciphertext.points.0 * anncmnt_random_1 - next_recipient_pk.get_point() * anncmnt_random_2;
+
+
+        let challenge = compute_challenge_ptxt_eq(
+            &pk,
+            next_recipient_pk,
+            received_ciphertext,
+            forwarded_ciphertext,
+            &anncmnt_base_G_1.compress(),
+            &anncmnt_base_G_2.compress(),
+            &anncmnt_base_G_3.compress()
+        );
+
+        let response_correct_decryption = anncmnt_random_1 + challenge * self.get_scalar();
+        let response_correct_encryption = anncmnt_random_2 + challenge * forwarded_ciphertext_randomness;
+        (
+            (
+                anncmnt_base_G_1.compress(),
+                anncmnt_base_G_2.compress(),
+                anncmnt_base_G_3.compress(),
+            ),
+            response_correct_decryption,
+            response_correct_encryption,
+        )
+    }
 }
 
 // todo: why do we have this?
@@ -183,6 +227,8 @@ fn clamp_scalar(scalar: [u8; 32]) -> Scalar {
 mod tests {
     use super::*;
     use rand_core::OsRng;
+    use std::io::Write;
+
     #[test]
     fn create_and_verify_sk_knowledge() {
         let mut csprng = OsRng;
@@ -261,6 +307,74 @@ mod tests {
         let proof = sk.prove_correct_decryption_no_Merlin(&ciphertext, &fake_decryption);
 
         assert!(!pk.verify_correct_decryption_no_Merlin(&proof, &ciphertext, &fake_decryption));
+    }
+
+    fn fill_from_str(mut bytes: &mut [u8], s: &str) {
+        bytes.write(s.as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn prove_correct_reencryption_no_Merlin() {
+        let mut csprng = OsRng;
+
+        let content_str = "Crypt0_h0eZZ";
+        let mut content_bytes = [0u8; 64];
+        fill_from_str(&mut content_bytes, content_str);
+        let ptxt = RistrettoPoint::from_uniform_bytes(&content_bytes);
+
+        let sk_bob = SecretKey::new(&mut csprng);
+        let pk_bob = PublicKey::from(&sk_bob);
+        let sk_carol = SecretKey::new(&mut csprng);
+        let pk_carol = PublicKey::from(&sk_carol);
+
+        // Alice encrypts for Bob
+        let ctxt_1 = pk_bob.encrypt(&ptxt);
+        let rtxt_1 = sk_bob.decrypt(&ctxt_1);
+        assert_eq!(ptxt, rtxt_1);
+
+        // Bob reencrypts for Carol
+        let r_2: Scalar = Scalar::random(&mut csprng);
+        let ctxt_2 = pk_carol.encrypt_with_random(&rtxt_1, r_2);
+        let rtxt_2 = sk_carol.decrypt(&ctxt_2);
+        assert_eq!(ptxt, rtxt_2);
+
+        let proof = sk_bob.prove_correct_reencryption_no_Merlin(&ctxt_1, &ctxt_2, r_2, &pk_carol);
+
+        assert!(pk_carol.verify_correct_reencryption_no_Merlin(&proof, &ctxt_1, &ctxt_2, &pk_bob));
+    }
+
+    #[test]
+    fn prove_false_reencryption_no_Merlin() {
+        let mut csprng = OsRng;
+
+        let content_str = "Crypt0_h0eZZ";
+        let mut content_bytes = [0u8; 64];
+        fill_from_str(&mut content_bytes, content_str);
+        let ptxt = RistrettoPoint::from_uniform_bytes(&content_bytes);
+
+        let sk_bob = SecretKey::new(&mut csprng);
+        let pk_bob = PublicKey::from(&sk_bob);
+        let sk_carol = SecretKey::new(&mut csprng);
+        let pk_carol = PublicKey::from(&sk_carol);
+
+        // Alice encrypts for Bob
+        let ctxt_1 = pk_bob.encrypt(&ptxt);
+        let rtxt_1 = sk_bob.decrypt(&ctxt_1);
+        assert_eq!(ptxt, rtxt_1);
+
+        // Bob tries to lie to Carol
+        let fake_content_str = "Crypt0_r1g0l0";
+        let mut fake_content_bytes = [0u8; 64];
+        fill_from_str(&mut fake_content_bytes, fake_content_str);
+        let fake_ptxt = RistrettoPoint::from_uniform_bytes(&fake_content_bytes);
+        let r_2: Scalar = Scalar::random(&mut csprng);
+        let ctxt_2 = pk_carol.encrypt_with_random(&fake_ptxt, r_2);
+        let rtxt_2 = sk_carol.decrypt(&ctxt_2);
+        assert_eq!(fake_ptxt, rtxt_2);
+
+        let proof = sk_bob.prove_correct_reencryption_no_Merlin(&ctxt_1, &ctxt_2, r_2, &pk_carol);
+
+        assert!(!pk_carol.verify_correct_reencryption_no_Merlin(&proof, &ctxt_1, &ctxt_2, &pk_bob));
     }
 
     #[test]
