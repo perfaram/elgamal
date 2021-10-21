@@ -279,16 +279,16 @@ impl PublicKey {
             anncmnt_base_G_3
         );
 
-        let mut is_verified = response_correct_decryption * RISTRETTO_BASEPOINT_POINT
-                                == challenge * orig_recipient_pk.get_point() + pt_deser(anncmnt_base_G_1);
-        is_verified &= response_correct_encryption * RISTRETTO_BASEPOINT_POINT
-                                == challenge * forwarded_ciphertext.points.0 + pt_deser(anncmnt_base_G_2);
+        let mut is_verified = ristretto_mul(&RISTRETTO_BASEPOINT_POINT, &response_correct_decryption).unwrap()
+                                == ristretto_mul(&orig_recipient_pk.get_point(), &challenge).unwrap() + pt_deser(anncmnt_base_G_1);
+        is_verified &= ristretto_mul(&RISTRETTO_BASEPOINT_POINT, &response_correct_encryption).unwrap()
+                                == ristretto_mul(&forwarded_ciphertext.points.0, &challenge).unwrap() + pt_deser(anncmnt_base_G_2);
         is_verified &= pt_deser(anncmnt_base_G_3)
                                 ==
-                                    challenge * forwarded_ciphertext.points.1
-                                    - challenge * original_ciphertext.points.1
-                                    + response_correct_decryption * original_ciphertext.points.0
-                                    - response_correct_encryption * self.0;
+                                    ristretto_mul(&forwarded_ciphertext.points.1, &challenge).unwrap()
+                                    - ristretto_mul(&original_ciphertext.points.1, &challenge).unwrap()
+                                    + ristretto_mul(&original_ciphertext.points.0, &response_correct_decryption).unwrap()
+                                    - ristretto_mul(&self.0, &response_correct_encryption).unwrap();
 
         is_verified
     }
