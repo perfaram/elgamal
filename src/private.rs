@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 use clear_on_drop::clear::Clear;
 use core::ops::Mul;
-use curve25519_dalek::constants::{RISTRETTO_BASEPOINT_POINT};
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use rand_core::{CryptoRng, OsRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -122,26 +122,23 @@ impl SecretKey {
         &self,
         ciphertext: &Ciphertext,
         message: &RistrettoPoint,
-    ) -> ((CompressedRistretto, CompressedRistretto), Scalar) {
+    ) -> ((RistrettoPoint, RistrettoPoint), Scalar) {
         let pk = PublicKey::from(self);
         let announcement_random = Scalar::random(&mut OsRng);
         let announcement_base_G = announcement_random * RISTRETTO_BASEPOINT_POINT;
         let announcement_base_ctxtp0 = announcement_random * ciphertext.points.0;
 
         let challenge = compute_challenge(
-            &message.compress(),
+            &message,
             ciphertext,
-            &announcement_base_G.compress(),
-            &announcement_base_ctxtp0.compress(),
+            &announcement_base_G,
+            &announcement_base_ctxtp0,
             &pk,
         );
 
         let response = announcement_random + challenge * self.get_scalar();
         (
-            (
-                announcement_base_G.compress(),
-                announcement_base_ctxtp0.compress(),
-            ),
+            (announcement_base_G, announcement_base_ctxtp0),
             response,
         )
     }

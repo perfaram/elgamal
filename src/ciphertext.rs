@@ -1,4 +1,5 @@
-use core::ops::{Add, Div, Mul, Sub};
+use borsh::{BorshSerialize, BorshDeserialize};
+use core::ops::{Add, AddAssign, Div, Mul, Sub, SubAssign};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use serde::{Deserialize, Serialize};
@@ -10,7 +11,7 @@ use zkp::{CompactProof, Transcript};
 
 define_proof! {dleq, "DLEQ Proof", (x), (A, B, H), (G) : A = (x * B), H = (x * G)}
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct Ciphertext {
     pub pk: PublicKey,
     pub points: (RistrettoPoint, RistrettoPoint),
@@ -181,6 +182,18 @@ impl<'a, 'b> Div<&'b Scalar> for &'a Ciphertext {
 }
 
 define_div_variants!(LHS = Ciphertext, RHS = Scalar, Output = Ciphertext);
+
+impl AddAssign for Ciphertext {
+    fn add_assign(&mut self, rhs: Ciphertext) {
+        *self = *self + rhs;
+    }
+}
+
+impl SubAssign for Ciphertext {
+    fn sub_assign(&mut self, rhs: Ciphertext) {
+        *self = *self - rhs;
+    }
+}
 
 #[cfg(test)]
 mod tests {

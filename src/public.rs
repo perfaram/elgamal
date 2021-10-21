@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+use borsh::{BorshSerialize, BorshDeserialize};
 use clear_on_drop::clear::Clear;
 use curve25519_dalek::constants::{RISTRETTO_BASEPOINT_COMPRESSED, RISTRETTO_BASEPOINT_POINT};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
@@ -10,9 +11,10 @@ use sha2::{Digest, Sha512};
 use zkp::{CompactProof, Transcript};
 
 use crate::ciphertext::*;
+use crate::multiply::ristretto_mul;
 
 /// The `PublicKey` struct represents an ElGamal public key.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct PublicKey(RistrettoPoint);
 
 define_proof! {dl_knowledge, "DLKnowledge Proof", (x), (A), (G) : A = (x * G)}
@@ -228,23 +230,22 @@ impl PublicKey {
     /// ```
     pub fn verify_correct_decryption_no_Merlin(
         self,
-        proof: &((CompressedRistretto, CompressedRistretto), Scalar),
+        proof: &((RistrettoPoint, RistrettoPoint), Scalar),
         ciphertext: &Ciphertext,
         message: &RistrettoPoint,
     ) -> bool {
         let ((announcement_base_G, announcement_base_ctxtp0), response) = proof;
         let challenge = compute_challenge(
-            &message.compress(),
+            &message,
             ciphertext,
             announcement_base_G,
             announcement_base_ctxtp0,
             &self,
         );
-        response * RISTRETTO_BASEPOINT_POINT
-            == announcement_base_G.decompress().unwrap() + challenge * self.get_point()
-            && response * ciphertext.points.0
-                == announcement_base_ctxtp0.decompress().unwrap()
-                    + challenge * (ciphertext.points.1 - message)
+        ristretto_mul(&RISTRETTO_BASEPOINT_POINT, &response).unwrap()
+            == announcement_base_G + ristretto_mul(&self.get_point(), &challenge).unwrap()
+            && ristretto_mul(&ciphertext.points.0, &response).unwrap()
+                == announcement_base_ctxtp0 + ristretto_mul(&(ciphertext.points.1 - message), &challenge).unwrap()
     }
 
     /// This function is the counterpart to prove_correct_reencryption_no_Merlin.
@@ -306,22 +307,25 @@ impl PublicKey {
 /// Compute challenge for the proof of correct decryption. Used in the variation
 /// that does not use Merlin.
 pub(crate) fn compute_challenge(
-    message: &CompressedRistretto,
+    message: &RistrettoPoint,
     ciphertext: &Ciphertext,
-    announcement_base_G: &CompressedRistretto,
-    announcement_base_ctxtp0: &CompressedRistretto,
+    announcement_base_G: &RistrettoPoint,
+    announcement_base_ctxtp0: &RistrettoPoint,
     pk: &PublicKey,
 ) -> Scalar {
-    Scalar::from_hash(
-        Sha512::new()
-            .chain(message.to_bytes())
-            .chain(ciphertext.points.0.compress().to_bytes())
-            .chain(ciphertext.points.1.compress().to_bytes())
-            .chain(announcement_base_G.to_bytes())
-            .chain(announcement_base_ctxtp0.to_bytes())
-            .chain(RISTRETTO_BASEPOINT_COMPRESSED.to_bytes())
-            .chain(pk.get_point().compress().to_bytes()),
-    )
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(
+        solana_sdk::hash::hashv(&[
+            &message.try_to_vec().unwrap(),
+            &ciphertext.points.0.try_to_vec().unwrap(),
+            &ciphertext.points.1.try_to_vec().unwrap(),
+            &announcement_base_G.try_to_vec().unwrap(),
+            &announcement_base_ctxtp0.try_to_vec().unwrap(),
+            &RISTRETTO_BASEPOINT_POINT.try_to_vec().unwrap(),
+            &pk.get_point().try_to_vec().unwrap(),
+        ]).as_ref()
+    );
+    Scalar::from_bits(hash)
 }
 
 /// Compute challenge for the proof of plaintext equality. No Merlin version

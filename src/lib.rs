@@ -130,5 +130,6 @@ extern crate zkp;
 pub mod macros;
 
 pub mod ciphertext;
+pub mod multiply;
 pub mod private;
 pub mod public;
